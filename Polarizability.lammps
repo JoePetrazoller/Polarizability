@@ -1,0 +1,211 @@
+#Created the 2024.10.07
+#Author : Joé Petrazoller, LEM3, Metz, France : joe.petrazoller@univ-lorraine.fr
+
+#Box dimensions and lattice parameter of the solvant (in Angstrom)
+variable dimx equal 15
+variable dimy equal 15
+variable dimz equal 15
+variable lparam equal 4.160539841913141
+#First loop = positive tensile and shear values, second loop = negative tensil and shear values
+variable pos_neg loop 2
+label pos_neg
+#Loops over all the strain values applied
+variable bigloop loop 10
+label bigloop
+#strains applied
+if "${bigloop} == 1" then "variable def equal '0.001'"
+if "${bigloop} == 2" then "variable def equal '0.0009'"
+if "${bigloop} == 3" then "variable def equal '0.0008'"
+if "${bigloop} == 4" then "variable def equal '0.0007'"
+if "${bigloop} == 5" then "variable def equal '0.0006'"
+if "${bigloop} == 6" then "variable def equal '0.0005'"
+if "${bigloop} == 7" then "variable def equal '0.0004'"
+if "${bigloop} == 8" then "variable def equal '0.0003'"
+if "${bigloop} == 9" then "variable def equal '0.0002'"
+if "${bigloop} == 10" then "variable def equal '0.0001'"
+#Loops over each component of the symmetric tensor
+variable count loop 6
+label loop
+units           metal
+boundary        p p p
+lattice fcc ${lparam}
+region BOITE block 0 ${dimx} 0 ${dimy} 0 ${dimz} units lattice
+create_box 2 BOITE
+create_atoms 1 box
+change_box all triclinic
+pair_style      eam/fs
+pair_coeff      * * AgNi.eam.fs Ag Ni
+thermo          1
+thermo_style    custom step pe ke press pxx pyy pzz pxy pxz pyz vol lx lz ly fnorm
+variable	a equal atoms
+variable	pxx equal pxx
+variable	pyy equal pyy
+variable	pzz equal pzz
+variable	pxy equal pxy
+variable	pxz equal pxz
+variable	pyz equal pyz
+variable    volume equal vol
+variable    size equal lx
+variable    size_x equal lx
+variable    size_y equal ly
+variable    size_z equal lz
+
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#%%%%%%%%%%%%%%%%    STEP 1  : Without solute    %%%%%%%%%%%%%%%%%%%%%%%
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+#%%%%%%%%%%%%%%%%%%%%%   CREATE BULK %%%%%%%%%%%%%%%%%%%%%%%%
+compute stress all stress/atom NULL
+compute voro all voronoi/atom 
+fix 1 all box/relax aniso 0.0
+#dump RESULTS1 all custom 1 Step1_.atom id type x y z c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6] c_voro[1]
+min_style cg
+minimize        0 1e-10 100000 100000
+variable pxx0 equal ${pxx}*10^5 #bar to Pa
+variable pyy0 equal ${pyy}*10^5
+variable pzz0 equal ${pzz}*10^5
+variable pxy0 equal ${pxy}*10^5
+variable pxz0 equal ${pxz}*10^5
+variable pyz0 equal ${pyz}*10^5
+#%%%%%%%%%%%%%%%%%%%%%   APPLY STRAIN  %%%%%%%%%%%%%%%%%%%%%%%%
+unfix 1 
+if "${pos_neg} == 1" then "variable direction equal 1"
+if "${pos_neg} == 2" then "variable direction equal -1"
+if "${count} == 1" then "variable deftempo equal ${direction}*${size_x}*(${def})"
+if "${count} == 2" then "variable deftempo equal ${direction}*${size_y}*(${def})"
+if "${count} == 3" then "variable deftempo equal ${direction}*${size_z}*(${def})"
+if "${count} == 4" then "variable deftempo equal ${direction}*${size_z}*(${def})"
+if "${count} == 5" then "variable deftempo equal ${direction}*${size_z}*(${def})"
+if "${count} == 6" then "variable deftempo equal ${direction}*${size_y}*(${def})"
+if "${count} == 1" then "variable comp string 'x'"
+if "${count} == 2" then "variable comp string 'y'"
+if "${count} == 3" then "variable comp string 'z'"
+if "${count} == 4" then "variable comp string 'yz'"
+if "${count} == 5" then "variable comp string 'xz'"
+if "${count} == 6" then "variable comp string 'xy'"
+if "${count} == 1" then "change_box all ${comp} delta 0 ${deftempo} remap units box"
+if "${count} == 2" then "change_box all ${comp} delta 0 ${deftempo} remap units box"
+if "${count} == 3" then "change_box all ${comp} delta 0 ${deftempo} remap units box"
+if "${count} == 4" then "change_box all ${comp} delta ${deftempo} remap units box"
+if "${count} == 5" then "change_box all ${comp} delta ${deftempo} remap units box"
+if "${count} == 6" then "change_box all ${comp} delta ${deftempo} remap units box"
+min_style cg
+minimize        0 1e-10 100000 100000
+variable volume2 equal ${volume}*10^-30
+variable pxx1 equal ${pxx}*10^5
+variable pyy1 equal ${pyy}*10^5
+variable pzz1 equal ${pzz}*10^5
+variable pxy1 equal ${pxy}*10^5
+variable pxz1 equal ${pxz}*10^5
+variable pyz1 equal ${pyz}*10^5
+variable press_xx_NODEFECT equal (${pxx1}-${pxx0}) #bar to Pa
+variable press_yy_NODEFECT equal (${pyy1}-${pyy0})
+variable press_zz_NODEFECT equal (${pzz1}-${pzz0})
+variable press_xy_NODEFECT equal (${pxy1}-${pxy0})
+variable press_xz_NODEFECT equal (${pxz1}-${pxz0})
+variable press_yz_NODEFECT equal (${pyz1}-${pyz0})
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#%%%%%%%%%%%%%%%%%    STEP 2  : With solute    %%%%%%%%%%%%%%%%%%%%%%%%%
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+#%%%%%%%%%%%%%%%%%%%%%   CREATE BULK %%%%%%%%%%%%%%%%%%%%%%%%
+#undump RESULTS1
+clear
+units           metal
+boundary        p p p
+lattice fcc ${lparam}
+region BOITE block 0 ${dimx} 0 ${dimy} 0 ${dimz} units lattice
+create_box 2 BOITE
+create_atoms 1 box
+change_box all triclinic
+pair_style      eam/fs
+pair_coeff      * * AgNi.eam.fs Ag Ni
+thermo          10
+thermo_style    custom step pe ke press pxx pyy pzz pxy pxz pyz vol lx lz ly fnorm
+variable	a equal atoms
+variable	pxx equal pxx
+variable	pyy equal pyy
+variable	pzz equal pzz
+variable	pxy equal pxy
+variable	pxz equal pxz
+variable	pyz equal pyz
+variable    volume equal vol
+compute stress all stress/atom NULL
+compute voro all voronoi/atom 
+fix 1 all box/relax aniso 0.0
+#dump RESULTS2 all custom 1 Step2_.atom id type x y z c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6] c_voro[1]
+min_style cg
+minimize        0 1e-10 100000 100000
+variable pxx0_s equal ${pxx}*10^5 #bar to Pa
+variable pyy0_s equal ${pyy}*10^5
+variable pzz0_s equal ${pzz}*10^5
+variable pxy0_s equal ${pxy}*10^5
+variable pxz0_s equal ${pxz}*10^5
+variable pyz0_s equal ${pyz}*10^5
+#%%%%%%%%%%%%%%%%%%%%%  ADD SOLUTE %%%%%%%%%%%%%%%%%%%%%%%%
+set atom 1000 type 2
+unfix 1 
+min_style cg
+minimize        0 1e-10 100000 100000
+#Just in case for check or debug, but not used
+variable pxx1_s equal ${pxx}*10^5 #bar to Pa
+variable pyy1_s equal ${pyy}*10^5
+variable pzz1_s equal ${pzz}*10^5
+variable pxy1_s equal ${pxy}*10^5
+variable pxz1_s equal ${pxz}*10^5
+variable pyz1_s equal ${pyz}*10^5
+#%%%%%%%%%%%%%%%%%%%%%  APPLY STRAIN  %%%%%%%%%%%%%%%%%%%%%%%%
+if "${count} == 1" then "change_box all ${comp} delta 0 ${deftempo} remap units box"
+if "${count} == 2" then "change_box all ${comp} delta 0 ${deftempo} remap units box"
+if "${count} == 3" then "change_box all ${comp} delta 0 ${deftempo} remap units box"
+if "${count} == 4" then "change_box all ${comp} delta ${deftempo} remap units box"
+if "${count} == 5" then "change_box all ${comp} delta ${deftempo} remap units box"
+if "${count} == 6" then "change_box all ${comp} delta ${deftempo} remap units box"
+min_style cg
+minimize        0 1e-10 100000 100000
+variable volume2 equal ${volume}*10^-30
+variable pxx2_s equal ${pxx}*10^5 #bar to Pa
+variable pyy2_s equal ${pyy}*10^5
+variable pzz2_s equal ${pzz}*10^5
+variable pxy2_s equal ${pxy}*10^5
+variable pxz2_s equal ${pxz}*10^5
+variable pyz2_s equal ${pyz}*10^5
+variable press_xx_DEFECT equal (${pxx2_s}-${pxx0_s})
+variable press_yy_DEFECT equal (${pyy2_s}-${pyy0_s})
+variable press_zz_DEFECT equal (${pzz2_s}-${pzz0_s})
+variable press_xy_DEFECT equal (${pxy2_s}-${pxy0_s})
+variable press_xz_DEFECT equal (${pxz2_s}-${pxz0_s})
+variable press_yz_DEFECT equal (${pyz2_s}-${pyz0_s})
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#%%%%%%%%    STEP 3  : Elastic dipole calculation    %%%%%%%%%%%%%%%%%%%
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+variable Eldip_xx equal ((${press_xx_DEFECT}-${press_xx_NODEFECT})*${volume2})/(1.602176634*10^-(19))
+variable Eldip_yy equal ((${press_yy_DEFECT}-${press_yy_NODEFECT})*${volume2})/(1.602176634*10^-(19))
+variable Eldip_zz equal ((${press_zz_DEFECT}-${press_zz_NODEFECT})*${volume2})/(1.602176634*10^-(19))
+variable Eldip_xy equal ((${press_xy_DEFECT}-${press_xy_NODEFECT})*${volume2})/(1.602176634*10^-(19))
+variable Eldip_xz equal ((${press_xz_DEFECT}-${press_xz_NODEFECT})*${volume2})/(1.602176634*10^-(19))
+variable Eldip_yz equal ((${press_yz_DEFECT}-${press_yz_NODEFECT})*${volume2})/(1.602176634*10^-(19))
+if "${pos_neg} == 1" then "print 'Pxx ${Eldip_xx}' append Pij_${def}_${comp}.txt"
+if "${pos_neg} == 1" then "print 'Pyy ${Eldip_yy}' append Pij_${def}_${comp}.txt"
+if "${pos_neg} == 1" then "print 'Pzz ${Eldip_zz}' append Pij_${def}_${comp}.txt"
+if "${pos_neg} == 1" then "print 'Pyz ${Eldip_yz}' append Pij_${def}_${comp}.txt"
+if "${pos_neg} == 1" then "print 'Pxz ${Eldip_xz}' append Pij_${def}_${comp}.txt"
+if "${pos_neg} == 1" then "print 'Pxy ${Eldip_xy}' append Pij_${def}_${comp}.txt"
+if "${pos_neg} == 1" then "print 'volume ${volume2} m^3' append Pij_${def}_${comp}.txt"
+if "${pos_neg} == 2" then "print 'Pxx ${Eldip_xx}' append Pij_-${def}_${comp}.txt"
+if "${pos_neg} == 2" then "print 'Pyy ${Eldip_yy}' append Pij_-${def}_${comp}.txt"
+if "${pos_neg} == 2" then "print 'Pzz ${Eldip_zz}' append Pij_-${def}_${comp}.txt"
+if "${pos_neg} == 2" then "print 'Pyz ${Eldip_yz}' append Pij_-${def}_${comp}.txt"
+if "${pos_neg} == 2" then "print 'Pxz ${Eldip_xz}' append Pij_-${def}_${comp}.txt"
+if "${pos_neg} == 2" then "print 'Pxy ${Eldip_xy}' append Pij_-${def}_${comp}.txt"
+if "${pos_neg} == 2" then "print 'volume ${volume2} m^3' append Pij_-${def}_${comp}.txt"
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+clear
+next count
+jump SELF loop
+clear
+next bigloop
+jump SELF bigloop
+clear
+next pos_neg
+jump SELF pos_neg
